@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  yield-optimizer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3042:3042"
+    environment:
+      - PORT=3042
+    env_file:
+      - .env
+    restart: unless-stopped
+
