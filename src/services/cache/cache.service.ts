@@ -94,12 +94,11 @@ export class CacheService {
     amount: string,
     yieldFingerprint: string,
     data: {
-      route?: AgentOutput['route'];
-      routes?: AgentOutput['routes'];
+      routes: AgentOutput['routes'];
       errors?: string[];
     },
   ): void {
-    if (!data.route && (!data.routes || data.routes.length === 0)) {
+    if (!data.routes || data.routes.length === 0) {
       return;
     }
 
@@ -123,7 +122,6 @@ export class CacheService {
     }
 
     this.routeCache.set(cacheKey, {
-      route: data.route,
       routes: data.routes,
       errors: data.errors,
       yieldFingerprint,
@@ -191,46 +189,14 @@ export class CacheService {
   extractAndCacheTokenSymbols(data: AgentOutput): void {
     // Extract symbols from yield deposit_token
     if (data.yield?.deposit_token) {
-      const depositToken = data.yield.deposit_token;
-      if (Array.isArray(depositToken)) {
-        depositToken.forEach((token) => {
-          if (token.address && token.symbol && token.symbol !== 'UNKNOWN') {
-            this.setCachedTokenSymbol(token.address, token.symbol);
-          }
-        });
-      } else if (
-        depositToken.address &&
-        depositToken.symbol &&
-        depositToken.symbol !== 'UNKNOWN'
-      ) {
-        this.setCachedTokenSymbol(depositToken.address, depositToken.symbol);
-      }
+      data.yield.deposit_token.forEach((token) => {
+        if (token.address && token.symbol && token.symbol !== 'UNKNOWN') {
+          this.setCachedTokenSymbol(token.address, token.symbol);
+        }
+      });
     }
 
-    // Extract symbols from route(s)
-    if (data.route) {
-      if (
-        data.route.from_token?.address &&
-        data.route.from_token?.symbol &&
-        data.route.from_token.symbol !== 'UNKNOWN'
-      ) {
-        this.setCachedTokenSymbol(
-          data.route.from_token.address,
-          data.route.from_token.symbol,
-        );
-      }
-      if (
-        data.route.to_token?.address &&
-        data.route.to_token?.symbol &&
-        data.route.to_token.symbol !== 'UNKNOWN'
-      ) {
-        this.setCachedTokenSymbol(
-          data.route.to_token.address,
-          data.route.to_token.symbol,
-        );
-      }
-    }
-
+    // Extract symbols from routes
     if (data.routes) {
       data.routes.forEach((route) => {
         if (
@@ -259,9 +225,7 @@ export class CacheService {
 
   // ========== Utility ==========
   computeYieldFingerprint(yieldData: AgentOutput['yield']): string {
-    const depositTokens = Array.isArray(yieldData.deposit_token)
-      ? yieldData.deposit_token
-      : [yieldData.deposit_token];
+    const depositTokens = yieldData.deposit_token;
 
     const normalizedTokens = depositTokens.map((token) => ({
       symbol: token.symbol,

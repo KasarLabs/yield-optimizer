@@ -92,12 +92,10 @@ export class McpAgentService implements OnModuleDestroy {
           `Using cached route for token: ${inputTokenAddress} (cache age: ${routeCacheAgeMinutes} minutes) - skipping route.agent.prompt`,
         );
 
-        return this.buildFinalResponse(
-          cachedYield,
-          cachedRoute.route,
-          cachedRoute.routes,
-          [...errors, ...(cachedRoute.errors ?? [])],
-        );
+        return this.buildFinalResponse(cachedYield, cachedRoute.routes, [
+          ...errors,
+          ...(cachedRoute.errors ?? []),
+        ]);
       }
 
       // We have cached yield but no cached route - we'll need to get routing only
@@ -168,7 +166,7 @@ export class McpAgentService implements OnModuleDestroy {
     }
 
     // ========== PHASE 5: Route Discovery ==========
-    const { route, routes, routeErrors } = await this.discoverRoutes(
+    const { routes, routeErrors } = await this.discoverRoutes(
       inputTokenAddress,
       amount,
       yieldData,
@@ -179,7 +177,7 @@ export class McpAgentService implements OnModuleDestroy {
 
     errors.push(...routeErrors);
 
-    const validated = this.buildFinalResponse(yieldData, route, routes, errors);
+    const validated = this.buildFinalResponse(yieldData, routes, errors);
 
     // Extract and cache token symbols from the response
     this.cacheService.extractAndCacheTokenSymbols(validated);
@@ -189,7 +187,6 @@ export class McpAgentService implements OnModuleDestroy {
       amount,
       yieldFingerprint,
       {
-        route: validated.route,
         routes: validated.routes,
         errors: validated.errors,
       },
@@ -200,21 +197,13 @@ export class McpAgentService implements OnModuleDestroy {
 
   private buildFinalResponse(
     yieldData: AgentOutput['yield'],
-    route?: AgentOutput['route'],
-    routes?: AgentOutput['routes'],
+    routes: AgentOutput['routes'],
     errors?: string[],
   ): AgentOutput {
     const finalPayload: Record<string, unknown> = {
       yield: yieldData,
+      routes,
     };
-
-    if (route) {
-      finalPayload.route = route;
-    }
-
-    if (routes && routes.length > 0) {
-      finalPayload.routes = routes;
-    }
 
     if (errors && errors.length > 0) {
       finalPayload.errors = errors;
@@ -290,8 +279,7 @@ export class McpAgentService implements OnModuleDestroy {
     askClient: AskClient,
     allowedCapabilities: ToolDef[],
   ): Promise<{
-    route?: AgentOutput['route'];
-    routes?: AgentOutput['routes'];
+    routes: AgentOutput['routes'];
     routeErrors: string[];
   }> {
     const routeErrors: string[] = [];
@@ -306,8 +294,7 @@ export class McpAgentService implements OnModuleDestroy {
       AgentUtils.isAskStarknetRouter(tool.name),
     );
 
-    let route: AgentOutput['route'] | undefined;
-    let routes: AgentOutput['routes'] | undefined;
+    let routes: AgentOutput['routes'] = [];
 
     const hasRoutingOption =
       ekuboTools.length > 0 || avnuTools.length > 0 || Boolean(routerFallback);
@@ -317,13 +304,10 @@ export class McpAgentService implements OnModuleDestroy {
         'No routing tools available; returning yield data only.',
       );
       routeErrors.push('Routing skipped: no routing tools available.');
-      return { route, routes, routeErrors };
+      return { routes: [], routeErrors };
     }
 
-    const depositToken = yieldData.deposit_token;
-    const rawTargetTokens = Array.isArray(depositToken)
-      ? depositToken
-      : [depositToken];
+    const rawTargetTokens = yieldData.deposit_token;
 
     const targetTokensForRouting: YieldToken[] = [];
 
@@ -360,7 +344,7 @@ export class McpAgentService implements OnModuleDestroy {
           : 'Failed to split amount for routing.';
       this.logger.error(message, error instanceof Error ? error : undefined);
       routeErrors.push(`Routing skipped: ${message}`);
-      return { route, routes, routeErrors };
+      return { routes: [], routeErrors };
     }
 
     const attemptRouteWithTools = async (
@@ -368,8 +352,7 @@ export class McpAgentService implements OnModuleDestroy {
       label: string,
     ): Promise<{
       success: boolean;
-      route?: AgentOutput['route'];
-      routes?: AgentOutput['routes'];
+      routes: AgentOutput['routes'];
       errors: string[];
     }> => {
       if (tools.length === 0) {
@@ -378,6 +361,7 @@ export class McpAgentService implements OnModuleDestroy {
         );
         return {
           success: false,
+          routes: [],
           errors: [`Routing skipped for ${label}: no tools available.`],
         };
       }
@@ -432,9 +416,7 @@ export class McpAgentService implements OnModuleDestroy {
             attemptErrors.push(...routeResult.errors);
           }
 
-          if (routeResult.route) {
-            aggregatedRoutes.push(routeResult.route);
-          } else if (routeResult.routes) {
+          if (routeResult.routes && routeResult.routes.length > 0) {
             aggregatedRoutes.push(...routeResult.routes);
           }
         } catch (error) {
@@ -446,32 +428,24 @@ export class McpAgentService implements OnModuleDestroy {
           attemptErrors.push(`Routing attempt via ${label} failed: ${message}`);
           return {
             success: false,
+            routes: [],
             errors: attemptErrors,
           };
         }
       }
 
-      let selectedRoute: AgentOutput['route'] | undefined;
-      let selectedRoutes: AgentOutput['routes'] | undefined;
-
-      if (targetTokensForRouting.length > 1) {
-        selectedRoutes = aggregatedRoutes;
-      } else if (aggregatedRoutes.length > 0) {
-        selectedRoute = aggregatedRoutes[0];
-      }
-
-      if (!selectedRoute && !selectedRoutes) {
+      if (aggregatedRoutes.length === 0) {
         attemptErrors.push(`Routing with ${label} tools returned no routes.`);
         return {
           success: false,
+          routes: [],
           errors: attemptErrors,
         };
       }
 
       return {
         success: true,
-        route: selectedRoute,
-        routes: selectedRoutes,
+        routes: aggregatedRoutes,
         errors: attemptErrors,
       };
     };
@@ -491,7 +465,6 @@ export class McpAgentService implements OnModuleDestroy {
         routeErrors.push(...result.errors);
       }
       if (result.success) {
-        route = result.route;
         routes = result.routes;
         attemptSucceeded = true;
         break;
@@ -510,7 +483,6 @@ export class McpAgentService implements OnModuleDestroy {
         routeErrors.push(...fallbackResult.errors);
       }
       if (fallbackResult.success) {
-        route = fallbackResult.route;
         routes = fallbackResult.routes;
         attemptSucceeded = true;
       }
@@ -525,7 +497,7 @@ export class McpAgentService implements OnModuleDestroy {
       );
     }
 
-    return { route, routes, routeErrors };
+    return { routes, routeErrors };
   }
 
   private async ensureTokenSymbol(

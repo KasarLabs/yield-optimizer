@@ -44,7 +44,7 @@ export const OutputSchema = z
     yield: z.object({
       protocol: z.string().min(1),
       apy_pct: z.number().finite(),
-      deposit_token: z.union([TokenSchema, z.array(TokenSchema).min(1)]),
+      deposit_token: z.array(TokenSchema).min(1),
       pool_or_contract_address: z
         .string()
         .regex(/^0x[0-9a-fA-F]+$/)
@@ -53,8 +53,7 @@ export const OutputSchema = z
       source: z.enum(['troves', 'endurfi']),
       snapshot_at: z.string().min(1).nullable().optional(),
     }),
-    route: RouteSchema.optional(),
-    routes: z.array(RouteSchema).optional(),
+    routes: z.array(RouteSchema),
     errors: z.array(z.string()).optional(),
   })
   .passthrough()
@@ -75,26 +74,17 @@ export const OutputSchema = z
     };
 
     const depositToken = data.yield.deposit_token;
-    if (Array.isArray(depositToken)) {
-      depositToken.forEach((token, index) =>
-        ensureValidDepositToken(token, ['yield', 'deposit_token', index]),
-      );
-    } else {
-      ensureValidDepositToken(depositToken, ['yield', 'deposit_token']);
-    }
+    depositToken.forEach((token, index) =>
+      ensureValidDepositToken(token, ['yield', 'deposit_token', index]),
+    );
 
     const routesToCheck: Array<{
       route: ParsedRoute;
       path: (string | number)[];
     }> = [];
-    if (data.route) {
-      routesToCheck.push({ route: data.route, path: ['route'] });
-    }
-    if (data.routes) {
-      data.routes.forEach((route, index) => {
-        routesToCheck.push({ route, path: ['routes', index] });
-      });
-    }
+    data.routes.forEach((route, index) => {
+      routesToCheck.push({ route, path: ['routes', index] });
+    });
 
     for (const { route, path } of routesToCheck) {
       const fromAddress = route.from_token.address.toLowerCase();

@@ -111,8 +111,7 @@ export class AgentConversationService {
     raw: string,
     expectedAmount: string,
   ): {
-    route?: ParsedRoute;
-    routes?: ParsedRoute[];
+    routes: ParsedRoute[];
     errors?: string[];
   } {
     const parsed = this.parseAgentJson(raw);
@@ -126,28 +125,12 @@ export class AgentConversationService {
 
     const payload = withDefaults as Record<string, unknown>;
 
-    // Check for error-only responses (missing route object)
-    if (
-      !payload.route &&
-      !payload.routes &&
-      payload.errors &&
-      Array.isArray(payload.errors) &&
-      payload.errors.length > 0
-    ) {
-      const errorMessages = payload.errors
-        .filter((item): item is string => typeof item === 'string')
-        .join('; ');
-      this.logger.error('Route agent returned errors without route data', {
-        errors: payload.errors,
-      });
-      throw new Error(`Unable to determine swap route: ${errorMessages}`);
-    }
-
     const result: {
-      route?: ParsedRoute;
-      routes?: ParsedRoute[];
+      routes: ParsedRoute[];
       errors?: string[];
-    } = {};
+    } = {
+      routes: [],
+    };
 
     const normalizeRoute = (route: ParsedRoute): ParsedRoute => {
       const hops = route.hops ? [...route.hops] : [];
@@ -171,10 +154,12 @@ export class AgentConversationService {
       return normalized;
     };
 
+    // Handle both route (single) and routes (array) from the agent response
+    // Always convert to routes array
     if (this.isRecord(payload.route)) {
       try {
         const parsedRoute = RouteSchema.parse(payload.route);
-        result.route = normalizeRoute(parsedRoute);
+        result.routes.push(normalizeRoute(parsedRoute));
       } catch (error) {
         this.logger.error(
           'Route agent response failed schema validation',
@@ -202,10 +187,11 @@ export class AgentConversationService {
 
     if (Array.isArray(payload.routes)) {
       try {
-        result.routes = payload.routes.map((route) => {
+        const parsedRoutes = payload.routes.map((route) => {
           const parsedRoute = RouteSchema.parse(route);
           return normalizeRoute(parsedRoute);
         });
+        result.routes.push(...parsedRoutes);
       } catch (error) {
         this.logger.error(
           'Route agent response failed schema validation for routes array',
@@ -229,7 +215,21 @@ export class AgentConversationService {
       );
     }
 
-    if (!result.route && (!result.routes || result.routes.length === 0)) {
+    if (result.routes.length === 0) {
+      // Check for error-only responses (missing route object)
+      if (
+        payload.errors &&
+        Array.isArray(payload.errors) &&
+        payload.errors.length > 0
+      ) {
+        const errorMessages = payload.errors
+          .filter((item): item is string => typeof item === 'string')
+          .join('; ');
+        this.logger.error('Route agent returned errors without route data', {
+          errors: payload.errors,
+        });
+        throw new Error(`Unable to determine swap route: ${errorMessages}`);
+      }
       this.logger.error('Route agent did not return any route data.', payload);
       throw new Error('Route agent response missing route information.');
     }
@@ -340,11 +340,17 @@ export class AgentConversationService {
       return {
         protocol: strategy.strategy_name || strategy.protocol || 'UNKNOWN',
         apy_pct: strategy.apy_pct || 0,
-        deposit_token: strategy.deposit_token || {
-          symbol: 'UNKNOWN',
-          address: '0x0',
-          decimals: 18,
-        },
+        deposit_token: Array.isArray(strategy.deposit_token)
+          ? strategy.deposit_token
+          : strategy.deposit_token
+            ? [strategy.deposit_token]
+            : [
+                {
+                  symbol: 'UNKNOWN',
+                  address: '0x0',
+                  decimals: 18,
+                },
+              ],
         pool_or_contract_address:
           strategy.contract_address ||
           strategy.pool_or_contract_address ||
@@ -368,29 +374,29 @@ export class AgentConversationService {
     obj: Record<string, unknown>,
     target: Record<string, unknown>,
   ): void {
+    // Always convert to routes array
+    const routes: unknown[] = [];
+
     if (Array.isArray(obj.swap_routes)) {
-      target.routes = obj.swap_routes.map((route) =>
-        this.isRecord(route)
-          ? this.transformSingleRoute(route as Record<string, unknown>)
-          : route,
+      routes.push(
+        ...obj.swap_routes.map((route) =>
+          this.isRecord(route)
+            ? this.transformSingleRoute(route as Record<string, unknown>)
+            : route,
+        ),
       );
-      return;
-    }
-
-    if (this.isRecord(obj.swap_route)) {
-      target.route = this.transformSingleRoute(
-        obj.swap_route as Record<string, unknown>,
+    } else if (this.isRecord(obj.swap_route)) {
+      routes.push(
+        this.transformSingleRoute(obj.swap_route as Record<string, unknown>),
       );
-      return;
+    } else if (Array.isArray(obj.routes)) {
+      routes.push(...obj.routes);
+    } else if (this.isRecord(obj.route)) {
+      routes.push(obj.route);
     }
 
-    if (Array.isArray(obj.routes)) {
-      target.routes = obj.routes;
-      return;
-    }
-
-    if (obj.route) {
-      target.route = obj.route;
+    if (routes.length > 0) {
+      target.routes = routes;
     }
   }
 
@@ -464,31 +470,39 @@ export class AgentConversationService {
         }
       });
     }
-    // Apply defaults for route (single object)
+    // Apply defaults for route (single object) - convert to routes array
     else if (this.isRecord(obj.route)) {
       applyRouteDefaults(obj.route as Record<string, unknown>);
+      // Convert single route to routes array
+      if (!obj.routes) {
+        obj.routes = [obj.route];
+      }
+      delete obj.route;
     }
 
-    // Apply defaults for yield deposit_token
+    // Apply defaults for yield deposit_token (always convert to array)
     if (this.isRecord(obj.yield)) {
       const yieldObj = obj.yield as Record<string, unknown>;
       if (yieldObj.deposit_token) {
-        // Handle array of tokens (for pools)
-        if (Array.isArray(yieldObj.deposit_token)) {
-          yieldObj.deposit_token = yieldObj.deposit_token.map((token) => {
+        // Convert to array if it's a single object
+        if (!Array.isArray(yieldObj.deposit_token)) {
+          if (this.isRecord(yieldObj.deposit_token)) {
+            yieldObj.deposit_token = [yieldObj.deposit_token];
+          } else {
+            yieldObj.deposit_token = [];
+          }
+        }
+        // Apply defaults to all tokens in the array
+        yieldObj.deposit_token = (yieldObj.deposit_token as unknown[]).map(
+          (token) => {
             if (this.isRecord(token)) {
               const dt = token as Record<string, unknown>;
               if (!dt.symbol) dt.symbol = 'UNKNOWN';
               if (!dt.decimals) dt.decimals = 18;
             }
             return token;
-          });
-        } else if (this.isRecord(yieldObj.deposit_token)) {
-          // Handle single token object
-          const dt = yieldObj.deposit_token as Record<string, unknown>;
-          if (!dt.symbol) dt.symbol = 'UNKNOWN';
-          if (!dt.decimals) dt.decimals = 18;
-        }
+          },
+        );
       }
     }
 

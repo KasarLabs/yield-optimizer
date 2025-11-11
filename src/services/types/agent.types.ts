@@ -18,8 +18,7 @@ export type YieldCacheEntry = {
 };
 
 export type RouteCacheEntry = {
-  route?: AgentOutput['route'];
-  routes?: AgentOutput['routes'];
+  routes: AgentOutput['routes'];
   errors?: string[];
   yieldFingerprint: string;
   timestamp: number;

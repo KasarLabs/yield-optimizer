@@ -16,35 +16,39 @@ describe('AppController (e2e)', () => {
     yield: {
       protocol: 'JediSwap',
       apy_pct: 12.5,
-      deposit_token: {
-        symbol: 'USDC',
-        address:
-          '0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8',
-        decimals: 18,
-      },
+      deposit_token: [
+        {
+          symbol: 'USDC',
+          address:
+            '0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8',
+          decimals: 18,
+        },
+      ],
       pool_or_contract_address:
         '0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8',
       source: 'troves',
       snapshot_at: new Date().toISOString(),
     },
-    route: {
-      from_token: {
-        address:
-          '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
-        symbol: 'ETH',
-        decimals: 18,
+    routes: [
+      {
+        from_token: {
+          address:
+            '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7',
+          symbol: 'ETH',
+          decimals: 18,
+        },
+        to_token: {
+          address:
+            '0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8',
+          symbol: 'USDC',
+          decimals: 18,
+        },
+        amount_in: '1000000000000000000',
+        min_amount_out: '1250000000',
+        slippage_bps: 50,
+        hops: [],
       },
-      to_token: {
-        address:
-          '0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8',
-        symbol: 'USDC',
-        decimals: 18,
-      },
-      amount_in: '1000000000000000000',
-      min_amount_out: '1250000000',
-      slippage_bps: 50,
-      hops: [],
-    },
+    ],
     errors: [],
   };
 
@@ -107,7 +111,8 @@ describe('AppController (e2e)', () => {
           expect(res.body).toHaveProperty('tokenAddress', validTokenAddress);
           expect(res.body).toHaveProperty('result');
           expect(res.body.result).toHaveProperty('yield');
-          expect(res.body.result).toHaveProperty('route');
+          expect(res.body.result).toHaveProperty('routes');
+          expect(res.body.result.routes).toBeInstanceOf(Array);
           expect(res.body.result.yield.apy_pct).toBe(12.5);
           expect(mcpAgentService.findBestYieldPath).toHaveBeenCalledWith(
             validTokenAddress,
@@ -259,7 +264,8 @@ describe('AppController (e2e)', () => {
           // Result structure
           const result = res.body.result;
           expect(result).toHaveProperty('yield');
-          expect(result).toHaveProperty('route');
+          expect(result).toHaveProperty('routes');
+          expect(result.routes).toBeInstanceOf(Array);
 
           // Yield structure
           expect(result.yield).toHaveProperty('protocol');
@@ -267,16 +273,20 @@ describe('AppController (e2e)', () => {
           expect(result.yield).toHaveProperty('deposit_token');
           expect(result.yield).toHaveProperty('source');
 
-          // Route structure
-          expect(result.route).toHaveProperty('from_token');
-          expect(result.route).toHaveProperty('to_token');
-          expect(result.route).toHaveProperty('amount_in');
+          // Routes structure
+          if (result.routes.length > 0) {
+            const route = result.routes[0];
+            expect(route).toHaveProperty('from_token');
+            expect(route).toHaveProperty('to_token');
+            expect(route).toHaveProperty('amount_in');
 
+            // Type checks
+            expect(typeof route.amount_in).toBe('string');
+            expect(typeof route.from_token.address).toBe('string');
+            expect(typeof route.to_token.address).toBe('string');
+          }
           // Type checks
           expect(typeof result.yield.apy_pct).toBe('number');
-          expect(typeof result.route.amount_in).toBe('string');
-          expect(typeof result.route.from_token.address).toBe('string');
-          expect(typeof result.route.to_token.address).toBe('string');
         });
     });
   });
