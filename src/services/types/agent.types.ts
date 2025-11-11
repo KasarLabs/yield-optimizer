@@ -1,5 +1,9 @@
 import type { z } from 'zod';
-import type { OutputSchema, RouteSchema, TokenSchema } from '../../schemas/output.js';
+import type {
+  OutputSchema,
+  RouteSchema,
+  TokenSchema,
+} from '../../schemas/output.js';
 import type { AskStarknetClient } from '../../mcp/askStarknetClient.js';
 
 export const MAX_ITERATIONS = 12;
@@ -35,4 +39,3 @@ export type TokenSymbolLookupResult = {
 export type YieldToken = z.infer<typeof TokenSchema>;
 
 export type ParsedRoute = z.infer<typeof RouteSchema>;
-

@@ -123,9 +123,8 @@ export class McpAgentService implements OnModuleDestroy {
     }
 
     // ========== PHASE 3: Resolve Input Token Symbol ==========
-    let resolvedInputSymbol = this.cacheService.getCachedTokenSymbol(
-      inputTokenAddress,
-    );
+    let resolvedInputSymbol =
+      this.cacheService.getCachedTokenSymbol(inputTokenAddress);
 
     if (!resolvedInputSymbol) {
       const symbolLookup = await this.ensureTokenSymbol(
@@ -332,7 +331,8 @@ export class McpAgentService implements OnModuleDestroy {
       const resolution = await this.tokenResolver.resolveSwapTokenSymbol(
         rawToken,
         (address) => this.cacheService.getCachedTokenSymbol(address),
-        (address, symbol) => this.cacheService.setCachedTokenSymbol(address, symbol),
+        (address, symbol) =>
+          this.cacheService.setCachedTokenSymbol(address, symbol),
         (tokenAddress, client, capabilities, maxIter) =>
           this.ensureTokenSymbol(tokenAddress, client, capabilities),
         askClient,
@@ -349,7 +349,10 @@ export class McpAgentService implements OnModuleDestroy {
 
     let amountSplits: string[] = [];
     try {
-      amountSplits = AgentUtils.splitAmount(amount, targetTokensForRouting.length);
+      amountSplits = AgentUtils.splitAmount(
+        amount,
+        targetTokensForRouting.length,
+      );
     } catch (error) {
       const message =
         error instanceof Error
@@ -539,9 +542,8 @@ export class McpAgentService implements OnModuleDestroy {
       return { symbol: cached, errors: [], usedPrompt: false };
     }
 
-    const symbolTools = this.tokenResolver.selectSymbolTools(
-      allowedCapabilities,
-    );
+    const symbolTools =
+      this.tokenResolver.selectSymbolTools(allowedCapabilities);
     if (symbolTools.length === 0) {
       this.logger.warn(
         'Token symbol tools unavailable; skipping symbol lookup.',
@@ -655,6 +657,7 @@ export class McpAgentService implements OnModuleDestroy {
       'LANGCHAIN_API_KEY',
       'LANGCHAIN_PROJECT',
       'LANGCHAIN_TRACING_V2',
+      'NODE_ENV',
     ];
 
     for (const key of keys) {

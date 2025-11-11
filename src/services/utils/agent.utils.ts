@@ -39,4 +39,3 @@ export class AgentUtils {
     return toolName === 'ask_starknet' || toolName === 'ask_starknet/router';
   }
 }
-

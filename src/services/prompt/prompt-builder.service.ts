@@ -8,14 +8,14 @@ import type { YieldToken } from '../types/agent.types.js';
 export class PromptBuilderService {
   async buildYieldSystemPrompt(): Promise<string> {
     const promptPath = this.resolveFromCurrentDir(
-      '../../../prompts/yield.agent.prompt.md',
+      '../../prompts/yield.agent.prompt.md',
     );
     return readFile(promptPath, 'utf8');
   }
 
   async buildTokenSymbolPrompt(tokenAddress: string): Promise<string> {
     const promptPath = this.resolveFromCurrentDir(
-      '../../../prompts/token-symbol.agent.prompt.md',
+      '../../prompts/token-symbol.agent.prompt.md',
     );
     const basePrompt = await readFile(promptPath, 'utf8');
     const contextLines = ['Context:', `- Token address: ${tokenAddress}`];
@@ -29,7 +29,7 @@ export class PromptBuilderService {
     totalRoutes: number;
   }): Promise<string> {
     const promptPath = this.resolveFromCurrentDir(
-      '../../../prompts/route.agent.prompt.md',
+      '../../prompts/route.agent.prompt.md',
     );
     const rawPrompt = await readFile(promptPath, 'utf8');
     const contextualLines = [
@@ -49,4 +49,3 @@ export class PromptBuilderService {
     return join(currentDir, relativePath);
   }
 }
-

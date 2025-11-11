@@ -126,4 +126,3 @@ export class StdioAskStarknetAdapter implements AskClient {
     return this.client;
   }
 }
-
