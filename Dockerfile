@@ -22,8 +22,13 @@ RUN pnpm run build
 # Production stage
 FROM node:20-alpine
 
-# Install pnpm
-RUN npm install -g pnpm
+# Install pnpm and necessary tools for npx
+RUN npm install -g pnpm && \
+    apk add --no-cache libc6-compat
+
+# Configure npm to use a writable cache directory
+RUN mkdir -p /root/.npm && \
+    npm config set cache /root/.npm --global
 
 # Set working directory
 WORKDIR /app
@@ -33,6 +38,11 @@ COPY package.json pnpm-lock.yaml ./
 
 # Install only production dependencies
 RUN pnpm install --prod --frozen-lockfile
+
+# Pre-install ask-starknet-mcp globally to ensure npx can find it
+# This ensures the package is available when npx tries to execute it
+RUN npm install -g @kasarlabs/ask-starknet-mcp && \
+    npm cache clean --force
 
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
