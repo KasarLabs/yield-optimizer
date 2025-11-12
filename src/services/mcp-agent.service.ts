@@ -622,6 +622,10 @@ export class McpAgentService implements OnModuleDestroy {
       'STARKNET_PUBLIC_ADDRESS',
       'STARKNET_ACCOUNT_ADDRESS',
       'MODEL_API_KEY',
+      'ANTHROPIC_API_KEY',
+      'GEMINI_API_KEY',
+      'OPENAI_API_KEY',
+      'MODEL_NAME',
       'LANGSMITH_API_KEY',
       'LANGSMITH_PROJECT',
       'LANGSMITH_ENABLED',
@@ -639,13 +643,9 @@ export class McpAgentService implements OnModuleDestroy {
       }
     }
 
-    if (!env.MODEL_API_KEY) {
-      const anthropicKey =
-        this.configService.get<string>('ANTHROPIC_API_KEY') ??
-        process.env.ANTHROPIC_API_KEY;
-      if (anthropicKey) {
-        env.MODEL_API_KEY = anthropicKey;
-      }
+    // Ensure MODEL_API_KEY is set if ANTHROPIC_API_KEY is available
+    if (!env.MODEL_API_KEY && env.ANTHROPIC_API_KEY) {
+      env.MODEL_API_KEY = env.ANTHROPIC_API_KEY;
     }
 
     if (!env.LANGCHAIN_API_KEY && env.LANGSMITH_API_KEY) {
