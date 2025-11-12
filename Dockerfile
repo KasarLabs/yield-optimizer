@@ -1,57 +1,49 @@
-# Build stage
-FROM node:20-alpine AS builder
-
-# Install pnpm
-RUN npm install -g pnpm
+# ---------- Build stage ----------
+FROM node:22-alpine AS builder
+# Enable Corepack (included with Node 22) to manage pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package files first for better layer caching
 COPY package.json pnpm-lock.yaml ./
 
-# Install dependencies
+# Install all dependencies using the lockfile
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
+# Copy the rest of the source code
 COPY . .
 
 # Build the application
 RUN pnpm run build
 
-# Production stage
-FROM node:20-alpine
+# ---------- Production stage ----------
+FROM node:22-alpine
 
-# Install pnpm and necessary tools for npx
-RUN npm install -g pnpm && \
-    apk add --no-cache libc6-compat
+# Enable Corepack for pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
 
-# Configure npm to use a writable cache directory
-RUN mkdir -p /root/.npm && \
-    npm config set cache /root/.npm --global
+# (Optional) install glibc compatibility if native modules need it
+# RUN apk add --no-cache libc6-compat
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
+# Copy package manifests and install only production dependencies
 COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
 
-# Install only production dependencies
-RUN pnpm install --prod --frozen-lockfile
+# (Optional) Pre-install ask-starknet-mcp globally so npx can find it immediately
+# RUN npm install -g @kasarlabs/ask-starknet-mcp && npm cache clean --force
 
-# Pre-install ask-starknet-mcp globally to ensure npx can find it
-# This ensures the package is available when npx tries to execute it
-RUN npm install -g @kasarlabs/ask-starknet-mcp && \
-    npm cache clean --force
-
-# Copy built files from builder stage
+# Copy the compiled build from the builder stage
 COPY --from=builder /app/dist ./dist
 
-# Expose port 3042
+# Expose application port
 EXPOSE 3042
-
-# Set environment variable for port
 ENV PORT=3042
 
-# Run the application
+# Start the application
 CMD ["node", "dist/main.js"]
+    
