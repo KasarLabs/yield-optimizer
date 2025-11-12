@@ -479,6 +479,10 @@ export class AgentConversationService {
       }
       delete obj.route;
     }
+    // Ensure routes always exists as an array (required by schema)
+    else if (!obj.routes) {
+      obj.routes = [];
+    }
 
     // Apply defaults for yield deposit_token (always convert to array)
     if (this.isRecord(obj.yield)) {
