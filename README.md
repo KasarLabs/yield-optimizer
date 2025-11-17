@@ -95,7 +95,7 @@ pnpm run test:cov
 ### Yield Optimization
 
 - **POST** `/get_path` - Find optimal yield path for a token
-  - **Headers**: 
+  - **Headers**:
     - `X-API-Secret`: Your API secret key (required)
     - OR `Authorization: Bearer <your-api-secret>`
   - **Body**: `{ "address": "0x...", "amount": "1000000" }` - Starknet token address and amount
@@ -115,7 +115,7 @@ curl -X POST http://localhost:3042/get_path \
 The API includes several security measures:
 
 - **Helmet**: Security headers to protect against common vulnerabilities
-- **Rate Limiting**: 
+- **Rate Limiting**:
   - General: 100 requests per 15 minutes per IP
   - `/get_path` endpoint: 20 requests per minute per IP
 - **API Secret Authentication**: All `/get_path` requests require a valid API secret via `X-API-Secret` header or `Authorization: Bearer <secret>`
