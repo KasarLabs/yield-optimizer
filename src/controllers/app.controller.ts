@@ -6,8 +6,11 @@ import {
   Logger,
   BadRequestException,
   HttpCode,
+  UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AppService } from '../services/app.service.js';
+import { ApiSecretGuard } from '../guards/api-secret.guard.js';
 
 @Controller()
 export class AppController {
@@ -22,6 +25,8 @@ export class AppController {
 
   @Post('get_path')
   @HttpCode(200)
+  @UseGuards(ApiSecretGuard)
+  @Throttle({ default: { limit: 50, ttl: 60000 } })
   async getPath(
     @Body('address') address: string,
     @Body('amount') amount: string,

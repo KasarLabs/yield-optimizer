@@ -1,7 +1,9 @@
-import { Logger } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './modules/app.module.js';
+import helmet from 'helmet';
+import * as express from 'express';
 
 const bootstrapLogger = new Logger('Bootstrap');
 
@@ -44,8 +46,51 @@ function configureLangSmithEnvironment(configService: ConfigService): void {
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  configureLangSmithEnvironment(app.get(ConfigService));
-  const port = process.env.PORT || 3042;
+  const configService = app.get(ConfigService);
+  
+  configureLangSmithEnvironment(configService);
+
+  const isDevelopment =
+    process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
+
+  // Security headers with Helmet
+  app.use(
+    helmet({
+      contentSecurityPolicy: isDevelopment ? false : undefined,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
+
+  // CORS configuration
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
+  app.enableCors({
+    origin: corsOrigin ? corsOrigin.split(',') : '*',
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-API-Key',
+      'X-API-Secret',
+    ],
+  });
+
+  // Body size limit (1MB) - configured via Express adapter
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.use(express.json({ limit: '1mb' }));
+  expressApp.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+  // Global validation pipe
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
+
+  const port = configService.get<number>('PORT') || 3042;
   await app.listen(port);
+  bootstrapLogger.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();

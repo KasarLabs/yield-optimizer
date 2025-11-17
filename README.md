@@ -28,6 +28,10 @@ MODEL_API_KEY=your-model-api-key-here
 # Application Configuration
 PORT=3042
 
+# Security Configuration
+API_SECRET=your-api-secret-key-here
+CORS_ORIGIN=http://localhost:3000,https://yourdomain.com
+
 # LangSmith Monitoring (Optional)
 # Enable LangSmith tracking for monitoring LLM calls, costs, and performance
 LANGSMITH_ENABLED=true
@@ -91,7 +95,10 @@ pnpm run test:cov
 ### Yield Optimization
 
 - **POST** `/get_path` - Find optimal yield path for a token
-  - **Body**: `{ "address": "0x..." }` - Starknet token address
+  - **Headers**: 
+    - `X-API-Secret`: Your API secret key (required)
+    - OR `Authorization: Bearer <your-api-secret>`
+  - **Body**: `{ "address": "0x...", "amount": "1000000" }` - Starknet token address and amount
   - **Response**: Returns the best APY opportunity and optimal swap route
 
 Example request:
@@ -99,8 +106,22 @@ Example request:
 ```bash
 curl -X POST http://localhost:3042/get_path \
   -H "Content-Type: application/json" \
-  -d '{"address": "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7"}'
+  -H "X-API-Secret: your-api-secret-key-here" \
+  -d '{"address": "0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7", "amount": "1000000"}'
 ```
+
+## Security Features
+
+The API includes several security measures:
+
+- **Helmet**: Security headers to protect against common vulnerabilities
+- **Rate Limiting**: 
+  - General: 100 requests per 15 minutes per IP
+  - `/get_path` endpoint: 20 requests per minute per IP
+- **API Secret Authentication**: All `/get_path` requests require a valid API secret via `X-API-Secret` header or `Authorization: Bearer <secret>`
+- **CORS**: Configurable CORS origins (set `CORS_ORIGIN` in `.env`)
+- **Body Size Limit**: 1MB maximum request body size
+- **Input Validation**: Automatic validation and sanitization of request data
 
 ## Project Structure
 
@@ -108,9 +129,11 @@ curl -X POST http://localhost:3042/get_path \
 src/
 ├── main.ts                      # Application entry point
 ├── modules/
-│   └── app.module.ts            # Root module with ConfigModule
+│   └── app.module.ts            # Root module with ConfigModule and ThrottlerModule
 ├── controllers/
 │   └── app.controller.ts        # API endpoints
+├── guards/
+│   └── api-secret.guard.ts      # API secret authentication guard
 └── services/
     ├── app.service.ts           # Business logic orchestration
     └── mcp-agent.service.ts     # Gemini AI + MCP integration
